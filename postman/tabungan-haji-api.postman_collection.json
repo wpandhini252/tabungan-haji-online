@@ -1,0 +1,778 @@
+{
+  "info": {
+    "_postman_id": "9b2e1d3a-7c4d-4f0e-9a5b-1f2c3d4e5f60",
+    "name": "Tabungan Haji API",
+    "description": "Collection untuk Tabungan Haji API (Express 5 + Prisma + PostgreSQL). Base URL & ID-ID pakai variable collection — bisa di-override lewat environment.\n\n**Urutan run yang disarankan (folder demi folder):**\n1. Health Check\n2. Nasabah → Create (akan auto-set `nasabahId`)\n3. Tabungan → Create (akan auto-set `tabunganId`)\n4. Transaksi → Create Setoran / Penarikan (akan auto-set `transaksiId`)\n5. Negative Cases (opsional)\n\n**Catatan tipe BigInt:** field `saldo` (Tabungan) dan `nominal`/`saldoSebelum`/`saldoSesudah` (Transaksi) dikirim sebagai **string** di response JSON karena BigInt tidak native ke JSON.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "nasabahId", "value": "", "type": "string" },
+    { "key": "tabunganId", "value": "", "type": "string" },
+    { "key": "transaksiId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Body has status=ok', () => {",
+              "    const j = pm.response.json();",
+              "    pm.expect(j.status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nasabah",
+      "item": [
+        {
+          "name": "Create Nasabah",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nik\": \"3201020107950001\",\n  \"nama\": \"Andhini Wira Pratiwi\",\n  \"email\": \"andhini@example.com\",\n  \"nomorHp\": \"081234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah"]
+            },
+            "description": "Buat nasabah baru. Wajib semua field; NIK 16 digit & email harus unique."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya data.id', () => {",
+                  "    pm.expect(j).to.have.property('data');",
+                  "    pm.expect(j.data).to.have.property('id');",
+                  "});",
+                  "if (j && j.data && j.data.id) {",
+                  "    pm.collectionVariables.set('nasabahId', j.data.id);",
+                  "    console.log('nasabahId tersimpan:', j.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Nasabah",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah"]
+            },
+            "description": "Ambil semua nasabah, urut createdAt desc."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Body memiliki data (array) dan total', () => {",
+                  "    pm.expect(j.data).to.be.an('array');",
+                  "    pm.expect(j.total).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Nasabah by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah/{{nasabahId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah", "{{nasabahId}}"]
+            },
+            "description": "Ambil satu nasabah by UUID. 400 kalau bukan UUID, 404 kalau tidak ditemukan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya data.id', () => {",
+                  "    pm.expect(j.data).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Nasabah",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nomorHp\": \"082345678901\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah/{{nasabahId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah", "{{nasabahId}}"]
+            },
+            "description": "Update parsial. Minimal satu field. Aturan validasi tiap field sama dengan Create."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Field terupdate', () => {",
+                  "    pm.expect(j.data.nomorHp).to.eql('082345678901');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Nasabah",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah/{{nasabahId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah", "{{nasabahId}}"]
+            },
+            "description": "Hapus nasabah by UUID. 204 kalau sukses (no body), 404 kalau tidak ada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('nasabahId', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tabungan",
+      "item": [
+        {
+          "name": "Create Tabungan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nasabahId\": \"{{nasabahId}}\",\n  \"saldoAwal\": 500000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan"]
+            },
+            "description": "Buka rekening tabungan haji baru. `nomorRekening` opsional (auto-generate 13 digit kalau kosong). `saldoAwal` opsional (default 0).\n\n**Body fields:**\n- `nasabahId` (string UUID, wajib) — referensi nasabah\n- `nomorRekening` (string 10-20 digit, opsional)\n- `saldoAwal` (integer ≥ 0, opsional)\n\n**Status codes:** 201 created • 400 validasi • 409 nomorRekening duplikat • 400 INVALID_REFERENCE kalau nasabahId tidak ada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya data.id & nomorRekening', () => {",
+                  "    pm.expect(j.data).to.have.property('id');",
+                  "    pm.expect(j.data).to.have.property('nomorRekening');",
+                  "});",
+                  "if (j && j.data && j.data.id) {",
+                  "    pm.collectionVariables.set('tabunganId', j.data.id);",
+                  "    console.log('tabunganId tersimpan:', j.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tabungan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan"]
+            },
+            "description": "List semua rekening, urut dibukaAt desc. Include data nasabah ringkas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('data array & total number', () => {",
+                  "    pm.expect(j.data).to.be.an('array');",
+                  "    pm.expect(j.total).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tabungan by Nasabah",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan?nasabahId={{nasabahId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan"],
+              "query": [
+                { "key": "nasabahId", "value": "{{nasabahId}}" }
+              ]
+            },
+            "description": "Filter rekening milik satu nasabah."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Tabungan by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan/{{tabunganId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan", "{{tabunganId}}"]
+            },
+            "description": "Detail rekening + nasabah pemilik. `saldo` dikembalikan sebagai string (BigInt)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Saldo bertipe string', () => pm.expect(j.data.saldo).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Status Tabungan",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BLOKIR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan/{{tabunganId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan", "{{tabunganId}}"]
+            },
+            "description": "Update status rekening. Enum yang valid: `AKTIF`, `BLOKIR`, `TUTUP`. Transaksi hanya boleh dilakukan kalau status `AKTIF`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Status terupdate ke BLOKIR', () => pm.expect(j.data.status).to.eql('BLOKIR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Tabungan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan/{{tabunganId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan", "{{tabunganId}}"]
+            },
+            "description": "Hapus rekening. **Catatan:** kalau masih ada transaksi tertaut, hapus akan gagal karena FK constraint (tergantung referential action di DB)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('tabunganId', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transaksi",
+      "item": [
+        {
+          "name": "Create Setoran",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tabunganId\": \"{{tabunganId}}\",\n  \"jenis\": \"SETORAN\",\n  \"nominal\": 250000,\n  \"metode\": \"TUNAI\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Catat SETORAN. Saldo rekening otomatis bertambah dalam satu DB transaction.\n\n**Body fields:**\n- `tabunganId` (UUID, wajib)\n- `jenis` (`SETORAN` | `PENARIKAN`, wajib)\n- `nominal` (integer > 0, wajib)\n- `referensi` (string 6-50, opsional — auto-generate `STR-<ts>-<rand>` / `PNR-<ts>-<rand>`)\n- `metode` (`TUNAI` | `TRANSFER` | `DEBIT` | `KARTU`, opsional)\n\n**Status codes:** 201 success • 400 validasi • 404 tabungan tidak ada • 409 rekening tidak AKTIF • 422 saldo tidak cukup (untuk PENARIKAN) • 409 referensi duplikat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya saldoSebelum & saldoSesudah', () => {",
+                  "    pm.expect(j.data).to.have.property('saldoSebelum');",
+                  "    pm.expect(j.data).to.have.property('saldoSesudah');",
+                  "});",
+                  "if (j && j.data && j.data.id) {",
+                  "    pm.collectionVariables.set('transaksiId', j.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Penarikan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tabunganId\": \"{{tabunganId}}\",\n  \"jenis\": \"PENARIKAN\",\n  \"nominal\": 100000,\n  \"metode\": \"TUNAI\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Catat PENARIKAN. Akan 422 SALDO_INSUFFICIENT kalau saldo < nominal."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Transaksi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "List semua transaksi, urut waktu desc."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Transaksi by Tabungan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi?tabunganId={{tabunganId}}&jenis=SETORAN",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"],
+              "query": [
+                { "key": "tabunganId", "value": "{{tabunganId}}" },
+                { "key": "jenis", "value": "SETORAN" }
+              ]
+            },
+            "description": "Filter berdasarkan `tabunganId` dan/atau `jenis`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transaksi by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi/{{transaksiId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi", "{{transaksiId}}"]
+            },
+            "description": "Detail transaksi + ringkasan tabungan (nomorRekening, status, nasabahId)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Negative Cases",
+      "item": [
+        {
+          "name": "Create Nasabah — Invalid NIK",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nik\": \"123\",\n  \"nama\": \"X\",\n  \"email\": \"not-an-email\",\n  \"nomorHp\": \"99999\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah"]
+            },
+            "description": "Memicu 400 VALIDATION_ERR."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = VALIDATION_ERR', () => pm.expect(j.error).to.eql('VALIDATION_ERR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Nasabah — Invalid UUID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah/not-a-uuid",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah", "not-a-uuid"]
+            },
+            "description": "Memicu 400 VALIDATION_ERR untuk param :id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Nasabah — Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/nasabah/00000000-0000-4000-8000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "nasabah", "00000000-0000-4000-8000-000000000000"]
+            },
+            "description": "Memicu 404 NOT_FOUND."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = NOT_FOUND', () => pm.expect(j.error).to.eql('NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Tabungan — Nasabah Tidak Ada",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nasabahId\": \"00000000-0000-4000-8000-000000000000\",\n  \"saldoAwal\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan"]
+            },
+            "description": "Memicu 400 INVALID_REFERENCE (FK constraint Prisma P2003)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = INVALID_REFERENCE', () => pm.expect(j.error).to.eql('INVALID_REFERENCE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Tabungan — Status Tidak Valid",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PENDING\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan/{{tabunganId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan", "{{tabunganId}}"]
+            },
+            "description": "Memicu 400 VALIDATION_ERR — status di luar enum AKTIF/BLOKIR/TUTUP."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaksi — Tabungan Tidak Ditemukan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tabunganId\": \"00000000-0000-4000-8000-000000000000\",\n  \"jenis\": \"SETORAN\",\n  \"nominal\": 50000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Memicu 404 TABUNGAN_NOT_FOUND."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = TABUNGAN_NOT_FOUND', () => pm.expect(j.error).to.eql('TABUNGAN_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaksi — Saldo Tidak Cukup",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tabunganId\": \"{{tabunganId}}\",\n  \"jenis\": \"PENARIKAN\",\n  \"nominal\": 999999999\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Memicu 422 SALDO_INSUFFICIENT."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 422', () => pm.response.to.have.status(422));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = SALDO_INSUFFICIENT', () => pm.expect(j.error).to.eql('SALDO_INSUFFICIENT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaksi — Nominal Nol",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tabunganId\": \"{{tabunganId}}\",\n  \"jenis\": \"SETORAN\",\n  \"nominal\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Memicu 400 VALIDATION_ERR — nominal harus > 0."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
