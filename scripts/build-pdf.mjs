@@ -12,7 +12,6 @@ import { marked } from "marked";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const readmePath = join(root, "README.md");
 const outPdf = join(root, "docs", "Tabungan-Haji-API.pdf");
-const tmpHtml = join(root, "docs", "_readme.build.html");
 
 function findChrome() {
   const candidates =
@@ -79,26 +78,28 @@ const html = `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <title>Tabungan Haji API — Dokumentasi</title><style>${css}</style></head>
 <body>${bodyHtml}</body></html>`;
 
-writeFileSync(tmpHtml, html);
-
+// Temp HTML + Chrome profile live in the OS temp dir, never inside the repo,
+// so a build artifact can't accidentally be tracked/committed.
 const chrome = findChrome();
-const profileDir = mkdtempSync(join(tmpdir(), "thaji-pdf-"));
+const workDir = mkdtempSync(join(tmpdir(), "thaji-pdf-"));
+const tmpHtml = join(workDir, "readme.html");
+writeFileSync(tmpHtml, html);
 try {
   execFileSync(
     chrome,
     [
-      "--headless=new",
+      "--headless",
       "--disable-gpu",
       "--no-sandbox",
-      `--user-data-dir=${profileDir}`,
+      "--timeout=60000",
+      `--user-data-dir=${join(workDir, "profile")}`,
       "--no-pdf-header-footer",
       `--print-to-pdf=${outPdf}`,
       tmpHtml,
     ],
-    { stdio: "inherit" },
+    { stdio: "inherit", timeout: 120000 },
   );
   console.log(`PDF dibuat: ${outPdf}`);
 } finally {
-  rmSync(tmpHtml, { force: true });
-  rmSync(profileDir, { recursive: true, force: true });
+  rmSync(workDir, { recursive: true, force: true });
 }
