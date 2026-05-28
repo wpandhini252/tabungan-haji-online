@@ -2,19 +2,30 @@
   "info": {
     "_postman_id": "9b2e1d3a-7c4d-4f0e-9a5b-1f2c3d4e5f60",
     "name": "Tabungan Haji API",
-    "description": "Collection untuk Tabungan Haji API (Express 5 + Prisma + PostgreSQL). Base URL & ID-ID pakai variable collection — bisa di-override lewat environment.\n\n**Urutan run yang disarankan (folder demi folder):**\n1. Health Check\n2. Nasabah → Create (akan auto-set `nasabahId`)\n3. Tabungan → Create (akan auto-set `tabunganId`)\n4. Transaksi → Create Setoran / Penarikan (akan auto-set `transaksiId`)\n5. Negative Cases (opsional)\n\n**Catatan tipe BigInt:** field `saldo` (Tabungan) dan `nominal`/`saldoSebelum`/`saldoSesudah` (Transaksi) dikirim sebagai **string** di response JSON karena BigInt tidak native ke JSON.",
+    "description": "Collection untuk Tabungan Haji API (Express 5 + Prisma + PostgreSQL). Base URL & ID-ID pakai variable collection — bisa di-override lewat environment.\n\n**Urutan run yang disarankan (folder demi folder):**\n1. Health Check\n2. Nasabah → Create (akan auto-set `nasabahId`)\n3. User → Create (akan auto-set `userId` + simpan kredensial) lalu Login (akan auto-set `token` JWT)\n4. Tabungan → Create (akan auto-set `tabunganId`)\n5. Transaksi → Create Setoran / Penarikan (akan auto-set `transaksiId`)\n6. Negative Cases (opsional)\n\n**Catatan tipe BigInt:** field `saldo` (Tabungan) dan `nominal`/`saldoSebelum`/`saldoSesudah` (Transaksi) dikirim sebagai **string** di response JSON karena BigInt tidak native ke JSON.\n\n**Autentikasi (JWT):** Collection memakai Bearer Token `{{token}}` di level collection. Endpoint publik (Health, Login, Create Nasabah, Create User) di-set `No Auth`. Sisanya wajib JWT — jalankan **Login** dulu agar `token` tersimpan otomatis. Token berisi data user + `nasabah` sebagai child, berlaku 1 jam. **Logout** me-revoke token di server.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
     { "key": "nasabahId", "value": "", "type": "string" },
     { "key": "tabunganId", "value": "", "type": "string" },
-    { "key": "transaksiId", "value": "", "type": "string" }
+    { "key": "transaksiId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "userUsername", "value": "", "type": "string" },
+    { "key": "userPassword", "value": "", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
   ],
   "item": [
     {
       "name": "Health Check",
       "request": {
+        "auth": { "type": "noauth" },
         "method": "GET",
         "header": [],
         "url": {
@@ -45,6 +56,7 @@
         {
           "name": "Create Nasabah",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
             "header": [
               { "key": "Content-Type", "value": "application/json" }
@@ -192,6 +204,263 @@
                 "exec": [
                   "pm.test('Status 204', () => pm.response.to.have.status(204));",
                   "pm.collectionVariables.set('nasabahId', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nasabahId\": \"{{nasabahId}}\",\n  \"username\": \"{{userUsername}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user"]
+            },
+            "description": "Buat akun login untuk seorang nasabah. Password di-hash (bcrypt) sebelum disimpan dan TIDAK pernah dikembalikan di response.\n\n**Body fields:**\n- `nasabahId` (UUID, wajib) — referensi nasabah, unik (1 akun per nasabah)\n- `username` (string 4-70, huruf/angka/`._-`, wajib, unik)\n- `password` (string 8-72, wajib)\n\n**Status codes:** 201 created • 400 validasi • 409 username/nasabah_id duplikat • 422 NASABAH_NOT_FOUND (nasabahId tidak ada).\n\nPre-request script meng-generate username acak agar bisa di-run berulang, dan menyimpan kredensial ke variable `userUsername`/`userPassword` untuk dipakai request Login."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('userUsername')) {",
+                  "    pm.collectionVariables.set('userUsername', 'andhini_' + Math.floor(Math.random() * 100000));",
+                  "}",
+                  "if (!pm.collectionVariables.get('userPassword')) {",
+                  "    pm.collectionVariables.set('userPassword', 'rahasia123');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya data.id', () => {",
+                  "    pm.expect(j).to.have.property('data');",
+                  "    pm.expect(j.data).to.have.property('id');",
+                  "});",
+                  "pm.test('Password tidak dikembalikan', () => {",
+                  "    pm.expect(j.data).to.not.have.property('password');",
+                  "});",
+                  "if (j && j.data && j.data.id) {",
+                  "    pm.collectionVariables.set('userId', j.data.id);",
+                  "    console.log('userId tersimpan:', j.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{userUsername}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "login"]
+            },
+            "description": "Validasi kredensial login & terbitkan JWT. Password dicocokkan dengan hash via bcrypt. Sukses 200 mengembalikan `token` (JWT berisi data user + `nasabah` sebagai child) dan `data` user (tanpa password). Test script menyimpan token ke variable `token` untuk dipakai semua request yang butuh JWT. Gagal 401 INVALID_CREDENTIALS untuk username tidak ada maupun password salah (anti user-enumeration)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Login berhasil & dapat token', () => {",
+                  "    pm.expect(j.message).to.eql('Login berhasil');",
+                  "    pm.expect(j.token).to.be.a('string');",
+                  "    pm.expect(j.data).to.not.have.property('password');",
+                  "});",
+                  "pm.test('Response bawa data nasabah (child)', () => {",
+                  "    pm.expect(j.data).to.have.property('nasabah');",
+                  "});",
+                  "if (j && j.token) {",
+                  "    pm.collectionVariables.set('token', j.token);",
+                  "    console.log('token JWT tersimpan');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user"]
+            },
+            "description": "Ambil semua user, urut createdAt desc. Field `password` tidak disertakan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('data array & total number', () => {",
+                  "    pm.expect(j.data).to.be.an('array');",
+                  "    pm.expect(j.total).to.be.a('number');",
+                  "});",
+                  "pm.test('Tidak ada field password', () => {",
+                  "    j.data.forEach((u) => pm.expect(u).to.not.have.property('password'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "{{userId}}"]
+            },
+            "description": "Detail user by UUID. 400 kalau bukan UUID, 404 kalau tidak ditemukan. `password` tidak disertakan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Response punya data.id tanpa password', () => {",
+                  "    pm.expect(j.data).to.have.property('id');",
+                  "    pm.expect(j.data).to.not.have.property('password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"passwordBaru123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "{{userId}}"]
+            },
+            "description": "Update parsial (`username` dan/atau `password`). Minimal satu field. Jika `password` diisi, akan di-hash ulang. Aturan validasi field sama dengan Create.\n\nTest script menyimpan password baru ke variable agar request Login berikutnya tetap konsisten."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Update sukses tanpa bocor password', () => {",
+                  "    pm.expect(j.message).to.eql('User berhasil diupdate');",
+                  "    pm.expect(j.data).to.not.have.property('password');",
+                  "});",
+                  "pm.collectionVariables.set('userPassword', 'passwordBaru123');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "{{userId}}"]
+            },
+            "description": "Hapus user by UUID. 204 kalau sukses (no body), 404 kalau tidak ada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('userId', '');",
+                  "pm.collectionVariables.set('userUsername', '');",
+                  "pm.collectionVariables.set('userPassword', '');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "logout"]
+            },
+            "description": "Logout: me-revoke token JWT saat ini di server (masuk denylist sampai kedaluwarsa). Wajib menyertakan Bearer token. Sukses 200. **Jalankan paling akhir** — setelah ini token tidak berlaku lagi dan variable `token` dikosongkan, sehingga request terproteksi lain akan 401 sampai login ulang."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Logout berhasil', () => pm.expect(j.message).to.eql('Logout berhasil'));",
+                  "pm.collectionVariables.set('token', '');"
                 ]
               }
             }
@@ -673,6 +942,65 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Akses Protected Tanpa Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi"]
+            },
+            "description": "Memicu 401 UNAUTHORIZED — endpoint terproteksi diakses tanpa Bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = UNAUTHORIZED', () => pm.expect(j.error).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login — Kredensial Salah",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"user_tidak_ada\",\n  \"password\": \"salahbanget\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/user/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "user", "login"]
+            },
+            "description": "Memicu 401 INVALID_CREDENTIALS. Pesan sama untuk username tidak ada maupun password salah (anti user-enumeration)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "const j = pm.response.json();",
+                  "pm.test('error = INVALID_CREDENTIALS', () => pm.expect(j.error).to.eql('INVALID_CREDENTIALS'));"
                 ]
               }
             }

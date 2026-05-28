@@ -1,22 +1,34 @@
 import { z } from "zod";
 
 export const JenisTransaksiEnum = z.enum(["SETORAN", "PENARIKAN"]);
-export const MetodeTransaksiEnum = z.enum(["TUNAI", "TRANSFER", "DEBIT", "KARTU"]);
+export const MetodeTransaksiEnum = z.enum(["TUNAI", "TRANSFER", "DEBIT", "KARTU", "QRIS"]);
 
-export const CreateTransaksiSchema = z.object({
-    tabunganId: z.string().uuid("tabunganId harus berupa UUID yang valid"),
-    jenis: JenisTransaksiEnum,
-    nominal: z
-        .number()
-        .int("Nominal harus bilangan bulat")
-        .positive("Nominal harus lebih dari 0"),
-    referensi: z
-        .string()
-        .min(6, "Referensi minimal 6 karakter")
-        .max(50)
-        .optional(),
-    metode: MetodeTransaksiEnum.optional(),
-});
+export const MIN_SETORAN = 100_000;
+
+export const CreateTransaksiSchema = z
+    .object({
+        tabunganId: z.string().uuid("tabunganId harus berupa UUID yang valid"),
+        jenis: JenisTransaksiEnum,
+        nominal: z
+            .number()
+            .int("Nominal harus bilangan bulat")
+            .positive("Nominal harus lebih dari 0"),
+        referensi: z
+            .string()
+            .min(6, "Referensi minimal 6 karakter")
+            .max(50)
+            .optional(),
+        metode: MetodeTransaksiEnum.optional(),
+    })
+    .superRefine((data, ctx) => {
+        if (data.jenis === "SETORAN" && data.nominal < MIN_SETORAN) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["nominal"],
+                message: `Nominal setoran minimum Rp ${MIN_SETORAN.toLocaleString("id-ID")}`,
+            });
+        }
+    });
 
 export const TransaksiIdParamSchema = z.object({
     id: z.string().uuid("ID harus berupa UUID yang valid"),
@@ -27,5 +39,19 @@ export const ListTransaksiQuerySchema = z.object({
     jenis: JenisTransaksiEnum.optional(),
 });
 
+export const SetorQrisSchema = z.object({
+    tabunganId: z.string().uuid("tabunganId harus berupa UUID yang valid"),
+    nominal: z
+        .number()
+        .int("Nominal harus bilangan bulat")
+        .min(MIN_SETORAN, `Nominal setor QRIS minimum Rp ${MIN_SETORAN.toLocaleString("id-ID")}`),
+    referensi: z
+        .string()
+        .min(6, "Referensi minimal 6 karakter")
+        .max(50)
+        .optional(),
+});
+
 export type CreateTransaksiInput = z.infer<typeof CreateTransaksiSchema>;
 export type ListTransaksiQuery = z.infer<typeof ListTransaksiQuerySchema>;
+export type SetorQrisInput = z.infer<typeof SetorQrisSchema>;

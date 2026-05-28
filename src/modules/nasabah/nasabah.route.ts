@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { nasabahController } from "./nasabah.controller";
+import { authenticate } from "../../middleware/auth";
 
 export const nasabahRoutes = Router();
 
+// Publik (registrasi)
 nasabahRoutes.post("/", nasabahController.create);
-nasabahRoutes.get("/", nasabahController.findAll);
-nasabahRoutes.get("/:id", nasabahController.findById);
-nasabahRoutes.patch("/:id", nasabahController.update);
-nasabahRoutes.delete("/:id", nasabahController.remove);
+
+// Butuh JWT
+nasabahRoutes.get("/", authenticate, nasabahController.findAll);
+nasabahRoutes.get("/:id", authenticate, nasabahController.findById);
+nasabahRoutes.patch("/:id", authenticate, nasabahController.update);
+nasabahRoutes.delete("/:id", authenticate, nasabahController.remove);

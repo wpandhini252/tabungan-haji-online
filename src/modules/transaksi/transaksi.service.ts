@@ -1,15 +1,21 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
+import { MIN_SETORAN } from "./transaksi.schema";
 import type {
     CreateTransaksiInput,
     ListTransaksiQuery,
+    SetorQrisInput,
 } from "./transaksi.schema";
+
+type TxClient = Prisma.TransactionClient;
 
 export class TransaksiBusinessError extends Error {
     constructor(
         public code:
             | "TABUNGAN_NOT_FOUND"
             | "TABUNGAN_NOT_ACTIVE"
-            | "SALDO_INSUFFICIENT",
+            | "SALDO_INSUFFICIENT"
+            | "SETORAN_BELOW_MIN",
         message: string,
     ) {
         super(message);
@@ -17,8 +23,13 @@ export class TransaksiBusinessError extends Error {
     }
 }
 
-function generateReferensi(jenis: string): string {
-    const prefix = jenis === "SETORAN" ? "STR" : "PNR";
+function generateReferensi(jenis: string, metode?: string): string {
+    const prefix =
+        metode === "QRIS"
+            ? "QRIS"
+            : jenis === "SETORAN"
+              ? "STR"
+              : "PNR";
     const timestamp = Date.now().toString();
     const random = Math.floor(Math.random() * 10000)
         .toString()
@@ -28,9 +39,16 @@ function generateReferensi(jenis: string): string {
 
 export const transaksiService = {
     async create(data: CreateTransaksiInput) {
+        if (data.jenis === "SETORAN" && data.nominal < MIN_SETORAN) {
+            throw new TransaksiBusinessError(
+                "SETORAN_BELOW_MIN",
+                `Setoran minimum Rp ${MIN_SETORAN.toLocaleString("id-ID")}, transaksi gagal`,
+            );
+        }
+
         const nominal = BigInt(data.nominal);
 
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: TxClient) => {
             const tabungan = await tx.tabunganHaji.findUnique({
                 where: { id: data.tabunganId },
             });
@@ -74,10 +92,22 @@ export const transaksiService = {
                     nominal,
                     saldoSebelum,
                     saldoSesudah,
-                    referensi: data.referensi ?? generateReferensi(data.jenis),
+                    referensi:
+                        data.referensi ??
+                        generateReferensi(data.jenis, data.metode),
                     metode: data.metode,
                 },
             });
+        });
+    },
+
+    setorQris(data: SetorQrisInput) {
+        return this.create({
+            tabunganId: data.tabunganId,
+            jenis: "SETORAN",
+            nominal: data.nominal,
+            referensi: data.referensi,
+            metode: "QRIS",
         });
     },
 

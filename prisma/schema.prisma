@@ -20,6 +20,7 @@ model Nasabah {
   email        String         @unique @db.VarChar(150)
   nomorHp      String         @map("nomor_hp") @db.VarChar(20)
   tabungan     TabunganHaji[]
+  user         User?
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
@@ -52,4 +53,16 @@ model Transaksi {
   waktu          DateTime     @default(now())
 
   @@map("transaksi")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  nasabahId String   @unique @map("nasabah_id")
+  nasabah   Nasabah  @relation(fields: [nasabahId], references: [id])
+  username  String   @unique @db.VarChar(70)
+  password  String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
 }

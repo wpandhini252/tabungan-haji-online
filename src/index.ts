@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { nasabahRoutes } from "./modules/nasabah/nasabah.route";
 import { tabunganRoutes } from "./modules/tabungan/tabungan.route";
 import { transaksiRoutes } from "./modules/transaksi/transaksi.route";
+import { userRoutes } from "./modules/user/user.route";
 
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
   return this.toString();
@@ -28,6 +29,7 @@ app.get("/health", (req, res) => {
 app.use('/api/v1/nasabah', nasabahRoutes);
 app.use('/api/v1/tabungan', tabunganRoutes);
 app.use('/api/v1/transaksi', transaksiRoutes);
+app.use('/api/v1/user', userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}`);

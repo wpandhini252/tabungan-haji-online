@@ -1,9 +1,9 @@
 import type { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import {
     CreateTransaksiSchema,
     ListTransaksiQuerySchema,
+    SetorQrisSchema,
     TransaksiIdParamSchema,
 } from "./transaksi.schema";
 import { transaksiService, TransaksiBusinessError } from "./transaksi.service";
@@ -20,12 +20,20 @@ function parseId(req: Request, res: Response): string | null {
     return parsed.data.id;
 }
 
+function isPrismaKnownError(
+    err: unknown,
+): err is { code: string; meta?: { target?: string[] } } {
+    return (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        typeof (err as { code: unknown }).code === "string"
+    );
+}
+
 function handleDuplicate(err: unknown, res: Response): boolean {
-    if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-    ) {
-        const field = (err.meta?.target as string[])?.[0] ?? "field";
+    if (isPrismaKnownError(err) && err.code === "P2002") {
+        const field = err.meta?.target?.[0] ?? "field";
         res.status(409).json({
             error: "DUPLICATE_ENTRY",
             message: `${field} sudah terdaftar`,
@@ -40,7 +48,8 @@ function handleBusinessError(err: unknown, res: Response): boolean {
         const status =
             err.code === "TABUNGAN_NOT_FOUND"
                 ? 404
-                : err.code === "SALDO_INSUFFICIENT"
+                : err.code === "SALDO_INSUFFICIENT" ||
+                    err.code === "SETORAN_BELOW_MIN"
                   ? 422
                   : 409;
         res.status(status).json({ error: err.code, message: err.message });
@@ -64,6 +73,28 @@ export const transaksiController = {
             return res.status(201).json({
                 data: transaksi,
                 message: "Transaksi berhasil dicatat",
+            });
+        } catch (err) {
+            if (handleBusinessError(err, res)) return;
+            if (handleDuplicate(err, res)) return;
+            throw err;
+        }
+    },
+
+    async setorQris(req: Request, res: Response) {
+        const parsed = SetorQrisSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: "VALIDATION_ERR",
+                details: z.flattenError(parsed.error),
+            });
+        }
+
+        try {
+            const transaksi = await transaksiService.setorQris(parsed.data);
+            return res.status(201).json({
+                data: transaksi,
+                message: "Setoran QRIS berhasil dicatat",
             });
         } catch (err) {
             if (handleBusinessError(err, res)) return;
