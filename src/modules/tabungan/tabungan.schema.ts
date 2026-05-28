@@ -2,6 +2,12 @@ import { z } from "zod";
 
 export const StatusTabunganEnum = z.enum(["AKTIF", "BLOKIR", "TUTUP"]);
 
+// Parameter estimasi keberangkatan haji (preset default 2026, ubah sesuai kebijakan)
+export const SETORAN_AWAL_PORSI = 25000000;
+export const BIAYA_PELUNASAN = 56000000;
+export const KUOTA_HAJI_TAHUNAN = 221000;
+export const MASA_TUNGGU_TAHUN = 20;
+
 export const CreateTabunganSchema = z.object({
     nasabahId: z.string().uuid("nasabahId harus berupa UUID yang valid"),
     nomorRekening: z

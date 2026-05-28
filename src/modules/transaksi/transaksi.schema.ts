@@ -3,7 +3,7 @@ import { z } from "zod";
 export const JenisTransaksiEnum = z.enum(["SETORAN", "PENARIKAN"]);
 export const MetodeTransaksiEnum = z.enum(["TUNAI", "TRANSFER", "DEBIT", "KARTU", "QRIS"]);
 
-export const MIN_SETORAN = 100_000;
+export const MIN_SETORAN = 100000;
 
 export const CreateTransaksiSchema = z
     .object({
@@ -39,6 +39,21 @@ export const ListTransaksiQuerySchema = z.object({
     jenis: JenisTransaksiEnum.optional(),
 });
 
+export const LaporanBulananQuerySchema = z.object({
+    tahun: z.coerce
+        .number()
+        .int("Tahun harus bilangan bulat")
+        .min(2000, "Tahun minimal 2000")
+        .max(2100, "Tahun maksimal 2100"),
+    bulan: z.coerce
+        .number()
+        .int("Bulan harus bilangan bulat")
+        .min(1, "Bulan minimal 1")
+        .max(12, "Bulan maksimal 12"),
+    tabunganId: z.string().uuid("tabunganId harus berupa UUID yang valid").optional(),
+    jenis: JenisTransaksiEnum.optional(),
+});
+
 export const SetorQrisSchema = z.object({
     tabunganId: z.string().uuid("tabunganId harus berupa UUID yang valid"),
     nominal: z
@@ -54,4 +69,5 @@ export const SetorQrisSchema = z.object({
 
 export type CreateTransaksiInput = z.infer<typeof CreateTransaksiSchema>;
 export type ListTransaksiQuery = z.infer<typeof ListTransaksiQuerySchema>;
+export type LaporanBulananQuery = z.infer<typeof LaporanBulananQuerySchema>;
 export type SetorQrisInput = z.infer<typeof SetorQrisSchema>;

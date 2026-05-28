@@ -19,7 +19,9 @@
     { "key": "userId", "value": "", "type": "string" },
     { "key": "userUsername", "value": "", "type": "string" },
     { "key": "userPassword", "value": "", "type": "string" },
-    { "key": "token", "value": "", "type": "string" }
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "laporanBulan", "value": "", "type": "string" },
+    { "key": "laporanTahun", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -593,6 +595,37 @@
           ]
         },
         {
+          "name": "Estimasi Keberangkatan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tabungan/{{tabunganId}}/estimasi",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tabungan", "{{tabunganId}}", "estimasi"]
+            },
+            "description": "Estimasi keberangkatan haji & sisa kuota tahun berjalan berdasarkan saldo rekening (read-only). Konstanta default: setoran awal porsi Rp 25.000.000, biaya pelunasan Rp 56.000.000, kuota nasional 221.000/tahun, masa tunggu 20 tahun.\n\nKalau saldo ≥ setoran awal & status AKTIF → `eligiblePorsi=true` dan `estimasiTahunKeberangkatan = tahun sekarang + 20`. Kalau belum → field tahun `null` + `kekuranganSetoranAwal`. `sisaKuota = kuota − jumlah rekening AKTIF yang sudah memenuhi setoran awal`.\n\n**Status codes:** 200 sukses • 400 VALIDATION_ERR (id bukan UUID) • 404 NOT_FOUND."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Punya field estimasi & kuota', () => {",
+                  "    pm.expect(j.data).to.have.property('eligiblePorsi');",
+                  "    pm.expect(j.data).to.have.property('estimasiTahunKeberangkatan');",
+                  "    pm.expect(j.data).to.have.property('sisaKuota');",
+                  "});",
+                  "pm.test('Saldo bertipe string (BigInt)', () => pm.expect(j.data.saldo).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Update Status Tabungan",
           "request": {
             "method": "PATCH",
@@ -793,6 +826,53 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export Laporan Bulanan (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transaksi/laporan/bulanan?bulan={{laporanBulan}}&tahun={{laporanTahun}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transaksi", "laporan", "bulanan"],
+              "query": [
+                { "key": "bulan", "value": "{{laporanBulan}}" },
+                { "key": "tahun", "value": "{{laporanTahun}}" },
+                { "key": "tabunganId", "value": "{{tabunganId}}", "disabled": true },
+                { "key": "jenis", "value": "SETORAN", "disabled": true }
+              ]
+            },
+            "description": "Unduh laporan transaksi satu bulan sebagai **CSV** (bukan JSON). `bulan` (1-12) & `tahun` (2000-2100) wajib; `tabunganId` & `jenis` opsional (aktifkan di tab Params). Pre-request script mengisi bulan/tahun ke bulan berjalan kalau variabelnya masih kosong.\n\nResponse: `Content-Type: text/csv`, `Content-Disposition: attachment; filename=\"laporan-transaksi-<tahun>-<bulan>.csv\"`, body diawali BOM UTF-8 + CRLF. Kolom: waktu, referensi, nomorRekening, namaNasabah, nik, jenis, metode, nominal, saldoSebelum, saldoSesudah. Bulan tanpa transaksi tetap 200 dengan baris header saja.\n\n**Status codes:** 200 sukses • 400 VALIDATION_ERR (bulan/tahun kosong atau di luar rentang) • 401 UNAUTHORIZED."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('laporanTahun')) {",
+                  "    pm.collectionVariables.set('laporanTahun', String(new Date().getFullYear()));",
+                  "}",
+                  "if (!pm.collectionVariables.get('laporanBulan')) {",
+                  "    pm.collectionVariables.set('laporanBulan', String(new Date().getMonth() + 1));",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type text/csv', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'));",
+                  "pm.test('Content-Disposition attachment', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment'));",
+                  "pm.test('CSV punya baris header', () => pm.expect(pm.response.text()).to.include('waktu,referensi,nomorRekening'));"
                 ]
               }
             }

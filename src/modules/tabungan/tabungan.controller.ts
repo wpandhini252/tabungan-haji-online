@@ -114,6 +114,23 @@ export const tabunganController = {
         return res.status(200).json({ data: tabungan });
     },
 
+    async estimasi(req: Request, res: Response) {
+        const id = parseId(req, res);
+        if (!id) return;
+
+        const estimasi = await tabunganService.estimasiKeberangkatan(id);
+        if (!estimasi) {
+            return res.status(404).json({
+                error: "NOT_FOUND",
+                message: "Tabungan tidak ditemukan",
+            });
+        }
+        return res.status(200).json({
+            data: estimasi,
+            message: "Estimasi keberangkatan haji berhasil dihitung",
+        });
+    },
+
     async update(req: Request, res: Response) {
         const id = parseId(req, res);
         if (!id) return;

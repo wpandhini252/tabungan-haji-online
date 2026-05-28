@@ -9,4 +9,5 @@ transaksiRoutes.use(authenticate);
 transaksiRoutes.post("/", transaksiController.create);
 transaksiRoutes.post("/qris/setor", transaksiController.setorQris);
 transaksiRoutes.get("/", transaksiController.findAll);
+transaksiRoutes.get("/laporan/bulanan", transaksiController.laporanBulanan);
 transaksiRoutes.get("/:id", transaksiController.findById);

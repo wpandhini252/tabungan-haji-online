@@ -114,6 +114,59 @@ Hanya status yang bisa diubah. Saldo tidak boleh diubah via endpoint ini — gun
 
 ---
 
+### `GET /api/v1/tabungan/:id/estimasi` — Estimasi keberangkatan haji & sisa kuota
+
+Menghitung estimasi keberangkatan haji dan sisa kuota tahun berjalan berdasarkan **saldo** rekening. Read-only, tidak mengubah data.
+
+**Parameter (konstanta, di [tabungan.schema.ts](../src/modules/tabungan/tabungan.schema.ts) — ubah sesuai kebijakan):**
+| Konstanta | Nilai default | Arti |
+|---|---|---|
+| `SETORAN_AWAL_PORSI` | `25000000` | Saldo minimum agar dapat nomor porsi |
+| `BIAYA_PELUNASAN` | `56000000` | Total biaya pelunasan (Bipih) per jamaah |
+| `KUOTA_HAJI_TAHUNAN` | `221000` | Kuota nasional per tahun |
+| `MASA_TUNGGU_TAHUN` | `20` | Rata-rata masa tunggu (tahun) |
+
+**Alur internal:**
+1. Cari `TabunganHaji` by `id` → kalau tidak ada → `404 NOT_FOUND`
+2. `eligiblePorsi` = `status === "AKTIF"` **dan** `saldo >= SETORAN_AWAL_PORSI`
+3. Kalau eligible → `estimasiTahunKeberangkatan = tahun sekarang + MASA_TUNGGU_TAHUN`; kalau tidak → `null` + `kekuranganSetoranAwal`
+4. `porsiTerisi` = jumlah rekening `AKTIF` yang saldonya ≥ setoran awal (proksi kuota terpakai); `sisaKuota = max(0, KUOTA_HAJI_TAHUNAN - porsiTerisi)`
+
+**Respons 200 (saldo memenuhi setoran awal):**
+```json
+{
+  "data": {
+    "tabunganId": "b95bfc85-...",
+    "nomorRekening": "9892838190640",
+    "status": "AKTIF",
+    "nasabah": { "id": "2555...", "nik": "3201...", "nama": "Lisya Rasawari" },
+    "saldo": "60000000",
+    "setoranAwalPorsi": "25000000",
+    "biayaPelunasan": "56000000",
+    "eligiblePorsi": true,
+    "lunas": true,
+    "kekuranganSetoranAwal": "0",
+    "kekuranganPelunasan": "0",
+    "persenTerkumpul": 100,
+    "masaTungguTahun": 20,
+    "tahunPendaftaran": 2026,
+    "estimasiTahunKeberangkatan": 2046,
+    "kuotaTahunan": 221000,
+    "tahunKuota": 2026,
+    "porsiTerisi": 1,
+    "sisaKuota": 220999,
+    "keterangan": "Saldo memenuhi setoran awal porsi. Estimasi berangkat 2046 (masa tunggu 20 tahun)."
+  },
+  "message": "Estimasi keberangkatan haji berhasil dihitung"
+}
+```
+
+Kalau saldo belum cukup, `eligiblePorsi`/`lunas` = `false`, `tahunPendaftaran` & `estimasiTahunKeberangkatan` = `null`, dan `kekuranganSetoranAwal` berisi sisa yang harus disetor.
+
+**Possible errors:** `400 VALIDATION_ERR` (id bukan UUID), `404 NOT_FOUND`.
+
+---
+
 ## Transaksi — `/api/v1/transaksi`
 
 Mencatat mutasi rekening. **Operasi `create` bersifat atomic** — saldo rekening dan record transaksi diupdate dalam satu DB transaction (`prisma.$transaction`).
@@ -185,6 +238,39 @@ Urut `waktu` desc.
 ### `GET /api/v1/transaksi/:id` — Detail
 
 Return satu transaksi + ringkasan tabungan (`id`, `nomorRekening`, `status`, `nasabahId`).
+
+---
+
+### `GET /api/v1/transaksi/laporan/bulanan` — Export laporan bulanan (CSV)
+
+Mengunduh laporan transaksi satu bulan sebagai file **CSV** (bukan JSON). Filter rentang waktu `[awal bulan, awal bulan berikutnya)` dihitung berbasis **UTC**.
+
+**Query params:**
+| Field | Tipe | Wajib | Aturan |
+|---|---|---|---|
+| `tahun` | integer | ya | 2000-2100 |
+| `bulan` | integer | ya | 1-12 |
+| `tabunganId` | UUID | tidak | filter per rekening |
+| `jenis` | enum | tidak | `SETORAN` atau `PENARIKAN` |
+
+**Respons 200:**
+- `Content-Type: text/csv; charset=utf-8`
+- `Content-Disposition: attachment; filename="laporan-transaksi-<tahun>-<bulan>.csv"` (mis. `laporan-transaksi-2026-05.csv`)
+- Body diawali BOM UTF-8 (agar Excel membaca karakter Indonesia dengan benar), baris dipisah CRLF.
+
+**Kolom CSV (urut `waktu` asc):**
+```
+waktu,referensi,nomorRekening,namaNasabah,nik,jenis,metode,nominal,saldoSebelum,saldoSesudah
+```
+Kalau tidak ada transaksi di bulan tersebut → tetap 200 dengan baris header saja.
+
+**Contoh:**
+```
+GET /api/v1/transaksi/laporan/bulanan?bulan=5&tahun=2026
+GET /api/v1/transaksi/laporan/bulanan?bulan=5&tahun=2026&tabunganId=a1b2...&jenis=SETORAN
+```
+
+**Possible errors:** `400 VALIDATION_ERR` (bulan/tahun kosong atau di luar rentang), `401 UNAUTHORIZED`.
 
 ---
 

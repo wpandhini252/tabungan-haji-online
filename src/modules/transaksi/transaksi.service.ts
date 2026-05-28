@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma";
 import { MIN_SETORAN } from "./transaksi.schema";
 import type {
     CreateTransaksiInput,
+    LaporanBulananQuery,
     ListTransaksiQuery,
     SetorQrisInput,
 } from "./transaksi.schema";
@@ -134,4 +135,26 @@ export const transaksiService = {
                 },
             },
         }),
+
+    laporanBulanan: (query: LaporanBulananQuery) => {
+        const awalBulan = new Date(Date.UTC(query.tahun, query.bulan - 1, 1));
+        const awalBulanBerikutnya = new Date(Date.UTC(query.tahun, query.bulan, 1));
+
+        return prisma.transaksi.findMany({
+            where: {
+                tabunganId: query.tabunganId,
+                jenis: query.jenis,
+                waktu: { gte: awalBulan, lt: awalBulanBerikutnya },
+            },
+            orderBy: { waktu: "asc" },
+            include: {
+                tabungan: {
+                    select: {
+                        nomorRekening: true,
+                        nasabah: { select: { nama: true, nik: true } },
+                    },
+                },
+            },
+        });
+    },
 };

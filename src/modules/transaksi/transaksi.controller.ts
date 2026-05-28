@@ -2,11 +2,54 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import {
     CreateTransaksiSchema,
+    LaporanBulananQuerySchema,
     ListTransaksiQuerySchema,
     SetorQrisSchema,
     TransaksiIdParamSchema,
 } from "./transaksi.schema";
 import { transaksiService, TransaksiBusinessError } from "./transaksi.service";
+
+type LaporanRows = Awaited<ReturnType<typeof transaksiService.laporanBulanan>>;
+
+function toCsvField(value: string | bigint | null | undefined): string {
+    const str = value === null || value === undefined ? "" : String(value);
+    return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function buildLaporanCsv(rows: LaporanRows): string {
+    const header = [
+        "waktu",
+        "referensi",
+        "nomorRekening",
+        "namaNasabah",
+        "nik",
+        "jenis",
+        "metode",
+        "nominal",
+        "saldoSebelum",
+        "saldoSesudah",
+    ];
+
+    const lines = rows.map((t) =>
+        [
+            t.waktu.toISOString(),
+            t.referensi,
+            t.tabungan.nomorRekening,
+            t.tabungan.nasabah.nama,
+            t.tabungan.nasabah.nik,
+            t.jenis,
+            t.metode,
+            t.nominal,
+            t.saldoSebelum,
+            t.saldoSesudah,
+        ]
+            .map(toCsvField)
+            .join(","),
+    );
+
+    // BOM agar Excel membaca UTF-8 dengan benar; CRLF sesuai konvensi CSV.
+    return "﻿" + [header.join(","), ...lines].join("\r\n") + "\r\n";
+}
 
 function parseId(req: Request, res: Response): string | null {
     const parsed = TransaksiIdParamSchema.safeParse(req.params);
@@ -114,6 +157,28 @@ export const transaksiController = {
 
         const data = await transaksiService.findAll(parsed.data);
         return res.status(200).json({ data, total: data.length });
+    },
+
+    async laporanBulanan(req: Request, res: Response) {
+        const parsed = LaporanBulananQuerySchema.safeParse(req.query);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: "VALIDATION_ERR",
+                details: z.flattenError(parsed.error),
+            });
+        }
+
+        const rows = await transaksiService.laporanBulanan(parsed.data);
+        const csv = buildLaporanCsv(rows);
+        const { tahun, bulan } = parsed.data;
+        const filename = `laporan-transaksi-${tahun}-${String(bulan).padStart(2, "0")}.csv`;
+
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`,
+        );
+        return res.status(200).send(csv);
     },
 
     async findById(req: Request, res: Response) {
